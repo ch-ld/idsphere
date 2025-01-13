@@ -2,7 +2,9 @@ package dao
 
 import (
 	"errors"
+	"fmt"
 	"gorm.io/gorm"
+	"log"
 	"ops-api/global"
 	"ops-api/model"
 )
@@ -25,6 +27,56 @@ type MenuItem struct {
 	Meta      map[string]string `json:"meta"`
 	Redirect  string            `json:"redirect,omitempty"`
 	Children  []*MenuItem       `json:"children,omitempty"` // 当Children为Null时不返回，否则前端无法正确加载路由
+}
+
+// 添加错误定义
+var (
+	ErrMenuNameExists   = errors.New("菜单名称已存在")
+	ErrMenuPathExists   = errors.New("菜单路径已存在")
+	ErrMenuNotFound     = errors.New("菜单不存在")
+	ErrSubMenuNotFound  = errors.New("子菜单不存在")
+	ErrParentMenuExists = errors.New("父级菜单已存在子菜单，无法删除")
+)
+
+// CreateMenu 创建菜单
+func (m *menu) CreateMenu(menu *model.Menu) error {
+	// 检查菜单名称是否已存在
+	var count int64
+	if err := global.MySQLClient.Model(&model.Menu{}).
+		Where("name = ? OR path = ?", menu.Name, menu.Path).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrMenuNameExists
+	}
+
+	return global.MySQLClient.Create(menu).Error
+}
+
+// CreateSubMenu 创建子菜单
+func (m *menu) CreateSubMenu(subMenu *model.SubMenu) error {
+	// 检查父菜单是否存在
+	var parentMenu model.Menu
+	if err := global.MySQLClient.First(&parentMenu, subMenu.MenuID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrMenuNotFound
+		}
+		return err
+	}
+
+	// 检查子菜单名称是否已存在
+	var count int64
+	if err := global.MySQLClient.Model(&model.SubMenu{}).
+		Where("name = ? OR path = ?", subMenu.Name, subMenu.Path).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrMenuNameExists
+	}
+
+	return global.MySQLClient.Create(subMenu).Error
 }
 
 // GetMenuListAll 获取所有菜单（权限分配）
@@ -52,6 +104,143 @@ func (m *menu) GetMenuListAll() (data *MenuList, err error) {
 		Items: menus,
 		Total: total,
 	}, nil
+}
+
+// UpdateMenu 更新菜单
+func (m *menu) UpdateMenu(id uint, updates map[string]interface{}) error {
+	// 检查菜单是否存在
+	var menu model.Menu
+	if err := global.MySQLClient.First(&menu, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrMenuNotFound
+		}
+		return err
+	}
+
+	// 如果更新了name或path，需要检查是否与其他菜单冲突
+	if name, ok := updates["name"]; ok {
+		var count int64
+		if err := global.MySQLClient.Model(&model.Menu{}).
+			Where("name = ? AND id != ?", name, id).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrMenuNameExists
+		}
+	}
+
+	if path, ok := updates["path"]; ok {
+		var count int64
+		if err := global.MySQLClient.Model(&model.Menu{}).
+			Where("path = ? AND id != ?", path, id).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrMenuPathExists
+		}
+	}
+
+	return global.MySQLClient.Model(&menu).Updates(updates).Error
+}
+
+// UpdateSubMenu 更新子菜单
+func (m *menu) UpdateSubMenu(id uint, updates map[string]interface{}) error {
+	// 检查子菜单是否存在
+	var subMenu model.SubMenu
+	//if err := global.MySQLClient.First(&subMenu, id).Error; err != nil {
+	//	if errors.Is(err, gorm.ErrRecordNotFound) {
+	//		return ErrSubMenuNotFound
+	//	}
+	//	return err
+	//}
+	if err := global.MySQLClient.Where("id = ?", id).First(&subMenu).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrSubMenuNotFound
+		}
+		return err
+	}
+
+	// 如果更新了name或path，需要检查是否与其他子菜单冲突
+	if name, ok := updates["name"]; ok {
+		var count int64
+		if err := global.MySQLClient.Model(&model.SubMenu{}).
+			Where("name = ? AND id != ?", name, id).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrMenuNameExists
+		}
+	}
+
+	if path, ok := updates["path"]; ok {
+		var count int64
+		if err := global.MySQLClient.Model(&model.SubMenu{}).
+			Where("path = ? AND id != ?", path, id).
+			Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			return ErrMenuPathExists
+		}
+	}
+
+	return global.MySQLClient.Model(&subMenu).Updates(updates).Error
+}
+
+// DeleteMenu 删除菜单
+func (m *menu) DeleteMenu(id uint) error {
+	// 检查菜单是否存在
+	var menu model.Menu
+	if err := global.MySQLClient.First(&menu, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrMenuNotFound
+		}
+		return err
+	}
+
+	// 检查是否有子菜单
+	var count int64
+	if err := global.MySQLClient.Model(&model.SubMenu{}).
+		Where("menu_id = ?", id).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return ErrParentMenuExists
+	}
+	return global.MySQLClient.Delete(&menu).Error
+}
+
+// DeleteSubMenu 删除子菜单
+func (m *menu) DeleteSubMenu(id uint) error {
+	// 检查子菜单是否存在
+	var subMenu model.SubMenu
+	if err := global.MySQLClient.Where("id = ?", id).First(&subMenu).Error; err != nil {
+		log.Printf("查询错误: %v", err)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrSubMenuNotFound
+		}
+		return err
+	}
+
+	return global.MySQLClient.Delete(&subMenu).Error
+}
+
+// UpdateMenuSort 更新菜单排序
+func (m *menu) UpdateMenuSort(id uint, sort int) error {
+	return global.MySQLClient.Model(&model.Menu{}).
+		Where("id = ?", id).
+		Update("sort", sort).Error
+}
+
+// UpdateSubMenuSort 更新子菜单排序
+func (m *menu) UpdateSubMenuSort(id uint, sort int) error {
+	return global.MySQLClient.Model(&model.SubMenu{}).
+		Where("id = ?", id).
+		Update("sort", sort).Error
 }
 
 // GetMenuList 获取菜单列表（表格中展示）
@@ -153,26 +342,38 @@ func (m *menu) GetUserMenu(tx *gorm.DB, username string) (data []*MenuItem, err 
 
 // GetMenuTitle 根据菜单Name获取Title
 func (m *menu) GetMenuTitle(menuName string) (title *string, err error) {
-	var (
-		menu    model.Menu
-		subMenu model.SubMenu
-	)
+	if menuName == "" {
+		return nil, fmt.Errorf("menuName 不能为空")
+	}
 
-	// 在一级菜单中根据Name获取Title
-	tx := global.MySQLClient.Where("name = ?", menuName).First(&menu)
+	var menu model.Menu
+	// 在一级菜单中查找
+	err = global.MySQLClient.Where("name = ?", menuName).First(&menu).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("查询一级菜单失败: %w", err)
+		}
 
-	// 如果一级菜单没有找到对应的记录则在二级菜单中继续查找
-	if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
-		tx := global.MySQLClient.Where("name = ?", menuName).First(&subMenu)
-		if tx.Error != nil {
-			return nil, err
+		// 如果一级菜单没找到，查找二级菜单
+		var subMenu model.SubMenu
+		err = global.MySQLClient.Where("name = ?", menuName).First(&subMenu).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, fmt.Errorf("在一级和二级菜单中都未找到名称为 %s 的记录", menuName)
+			}
+			return nil, fmt.Errorf("查询二级菜单失败: %w", err)
+		}
+
+		// 检查二级菜单的 Title 是否为空
+		if subMenu.Title == "" {
+			return nil, fmt.Errorf("二级菜单 %s 的标题为空", menuName)
 		}
 		return &subMenu.Title, nil
 	}
 
-	if tx.Error != nil {
-		return nil, err
+	// 检查一级菜单的 Title 是否为空
+	if menu.Title == "" {
+		return nil, fmt.Errorf("一级菜单 %s 的标题为空", menuName)
 	}
-
 	return &menu.Title, nil
 }

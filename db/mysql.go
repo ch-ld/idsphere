@@ -53,6 +53,8 @@ func MySQLInit() error {
 		&model.ScheduledTaskExecLog{},
 		&model.Account{},
 		&model.Settings{},
+		&model.HostGroup{},
+		&model.Host{},
 	)
 
 	// 设置数据库连接池
@@ -63,16 +65,6 @@ func MySQLInit() error {
 
 	global.MySQLClient = client
 
-	// 初始化配置信息
-	if err := InitConfig(client); err != nil {
-		return err
-	}
-
-	// 创建超级用户
-	if err := createSuperUser(client); err != nil {
-		return err
-	}
-
 	// 初始化站点信息
 	if err := initializeSites(client); err != nil {
 		return err
@@ -80,6 +72,16 @@ func MySQLInit() error {
 
 	// 初始化基础数据
 	if err := initializeSQL(client); err != nil {
+		return err
+	}
+
+	// 初始化配置信息
+	if err := InitConfig(client); err != nil {
+		return err
+	}
+
+	// 创建超级用户
+	if err := createSuperUser(client); err != nil {
 		return err
 	}
 
@@ -103,6 +105,7 @@ func createSuperUser(client *gorm.DB) error {
 	}
 
 	result := client.FirstOrCreate(&user, model.AuthUser{Username: "admin"})
+	fmt.Println("result.Error:", result.Error)
 
 	if result.RowsAffected == 0 {
 		logger.Warn("admin用户已存在.")

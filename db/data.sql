@@ -6,6 +6,8 @@ INSERT INTO `system_menu` VALUES (2, '资产管理', 'Asset', 'menu-asset', '/as
 INSERT INTO `system_menu` VALUES (3, '日志审计', 'Audit', 'menu-audit', '/audit', 'Layout', 4, null);
 INSERT INTO `system_menu` VALUES (4, '系统设置', 'System', 'menu-system', '/system', 'Layout', 5, null);
 
+INSERT INTO `system_menu` VALUES (5, '主机管理', 'Host', 'host', '/host', 'Layout', 5, null);
+
 # 二级菜单
 INSERT INTO `system_sub_menu` VALUES (1, '用户管理', 'UserManagement', 'sub-menu-user', 'user', 'user/user/index', 1, null, 1);
 INSERT INTO `system_sub_menu` VALUES (2, '分组管理', 'GroupManagement', 'sub-menu-group', 'group', 'user/group/index', 2, null, 1);
@@ -17,6 +19,10 @@ INSERT INTO `system_sub_menu` VALUES (7, '操作日志', 'AuditOplog', 'sub-menu
 INSERT INTO `system_sub_menu` VALUES (8, '菜单管理', 'MenuManagement', 'sub-menu-menu', 'menu', 'system/menu/index', 1, null, 4);
 INSERT INTO `system_sub_menu` VALUES (9, '定时任务', 'CornManagement', 'sub-menu-corn', 'corn', 'system/corn/index', 2, null, 4);
 INSERT INTO `system_sub_menu` VALUES (10, '系统配置', 'ConfManagement', 'sub-menu-conf', 'conf', 'system/settings/index', 3, null, 4);
+
+INSERT INTO `system_sub_menu` VALUES (11, '主机组管理', 'HostGroupManagement', 'host-group', 'host-group', 'host/host-group/index', 1, null, 5);
+INSERT INTO `system_sub_menu` VALUES (12, '主机管理', 'HostManagement', 'host', 'host', 'host/host/index', 2, null, 5);
+INSERT INTO `system_sub_menu` VALUES (13, 'SSH管理', 'SshManagement', 'shell', 'ssh', 'host/ssh/index', 3, null, 5);
 
 # API接口
 INSERT INTO `system_path` VALUES (1, 'AddUser', '/api/v1/user', 'POST', 'UserManagement', '新增用户');
@@ -57,6 +63,39 @@ INSERT INTO `system_path` VALUES (35, 'GetTaskLogList', '/api/v1/task/logs', 'GE
 INSERT INTO `system_path` VALUES (36, 'GetSettings', '/api/v1/settings', 'GET', 'ConfManagement', '获取配置信息');
 INSERT INTO `system_path` VALUES (37, 'UpdateLogo', '/api/v1/settings/logoUpload', 'POST', 'ConfManagement', '修改 Logo');
 INSERT INTO `system_path` VALUES (38, 'UpdateSettings', '/api/v1/settings', 'PUT', 'ConfManagement', '修改配置信息');
+
+INSERT INTO `system_path` VALUES (39, 'ListHostGroups', '/api/v1/host-groups', 'GET', 'HostGroupManagement', '获取主机组列表');
+INSERT INTO `system_path` VALUES (40, 'CreateHostGroup', '/api/v1/host-group', 'POST', 'HostGroupManagement', '创建主机组');
+INSERT INTO `system_path` VALUES (41, 'UpdateHostGroup', '/api/v1/host-group/:id', 'PUT', 'HostGroupManagement', '更新主机组');
+INSERT INTO `system_path` VALUES (42, 'DeleteHostGroup', '/api/v1/host-group/:id', 'DELETE', 'HostGroupManagement', '删除主机组');
+
+INSERT INTO `system_path` VALUES (43, 'CreateMenu', '/api/v1/menus', 'POST', 'MenuManagement', '创建菜单');
+INSERT INTO `system_path` VALUES (44, 'UpdateMenu', '/api/v1/menus/:id', 'PUT', 'MenuManagement', '更新菜单');
+INSERT INTO `system_path` VALUES (45, 'DeleteMenu', '/api/v1/menus/:id', 'DELETE', 'MenuManagement', '删除菜单');
+INSERT INTO `system_path` VALUES (46, 'UpdateMenuSort', '/api/v1/menus/:id/sort', 'PUT', 'MenuManagement', '更新菜单排序');
+INSERT INTO `system_path` VALUES (47, 'CreateSubMenu', '/api/v1/submenus', 'POST', 'MenuManagement', '创建子菜单');
+INSERT INTO `system_path` VALUES (48, 'UpdateSubMenu', '/api/v1/submenus/:id', 'PUT', 'MenuManagement', '更新子菜单');
+INSERT INTO `system_path` VALUES (49, 'DeleteSubMenu', '/api/v1/submenus/:id', 'DELETE', 'MenuManagement', '删除子菜单');
+INSERT INTO `system_path` VALUES (50, 'UpdateSubMenuSort', '/api/v1/submenus/:id/sort', 'PUT', 'MenuManagement', '更新子菜单排序');
+
+INSERT INTO `system_path` VALUES
+                              (51, 'GetHostList', '/api/v1/hosts', 'GET', 'HostManagement', '获取主机列表'),
+                              (52, 'CreateHost', '/api/v1/host', 'POST', 'HostManagement', '创建主机'),
+                              (53, 'UpdateHost', '/api/v1/host/:id', 'PUT', 'HostManagement', '更新主机'),
+                              (54, 'DeleteHost', '/api/v1/host/:id', 'DELETE', 'HostManagement', '删除主机'),
+                              (55, 'BatchDeleteHosts', '/api/v1/hosts/deletes', 'POST', 'HostManagement', '批量删除主机'),
+                              (56, 'ImportHosts', '/api/v1/hosts/import', 'POST', 'HostManagement', '导入主机'),
+                              (57, 'CheckHostStatus', '/api/v1/host/check/:id', 'POST', 'HostManagement', '获取主机状态'),
+                              (58, 'SyncCloudHosts', '/api/v1/hosts/sync', 'POST', 'HostManagement', '同步云主机');
+
+INSERT INTO `system_path` VALUES
+                              (59, 'SftpListDirectory', '/api/v1/sftp/list', 'GET', 'SshManagement', 'sftp列出目录信息'),
+                              (60, 'SftpUploadFile', '/api/v1/sftp/upload', 'POST', 'SshManagement', 'sftp上传文件'),
+                              (61, 'SftpDownloadFile', '/api/v1/sftp/download', 'GET', 'SshManagement', 'sftp下载文件'),
+                              (62, 'SftpCreateDirectory', '/api/v1/sftp/mkdir', 'POST', 'SshManagement', 'sftp创建目录'),
+                              (63, 'SftpDeletePath', '/api/v1/sftp/delete', 'POST', 'SshManagement', 'sftp删除路径'),
+                              (64, 'WebSsh', '/api/v1/ssh/webssh', 'GET', 'SshManagement', 'webssh终端'),
+                              (65, 'SshCommand', '/api/v1/ssh/command', 'POST', 'SshManagement', 'ssh执行命令');
 
 # 系统默认配置
 INSERT INTO `settings` VALUES (1, 'externalUrl', 'https://example.idsphere.cn', 'string');

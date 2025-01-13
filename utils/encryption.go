@@ -7,13 +7,24 @@ import (
 	"encoding/base64"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"ops-api/config"
 )
 
 // Encrypt 字符串加密
 func Encrypt(str string) (string, error) {
 	// 读取公钥文件
-	publicKeySrt := config.Conf.Settings["publicKey"].(string)
+	publicKeyInterface := config.Conf.Settings["publicKey"]
+
+	// 检查 publicKeyInterface 是否为 nil
+	if publicKeyInterface == nil {
+		return "", fmt.Errorf("publicKey is not set in configuration")
+	}
+	// 读取公钥文件
+	publicKeySrt, ok := publicKeyInterface.(string)
+	if !ok {
+		return "", fmt.Errorf("expected string type for publicKey, got %T", publicKeyInterface)
+	}
 
 	// 公钥字符串转换为字节切片
 	publicKeyData := []byte(publicKeySrt)

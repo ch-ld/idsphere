@@ -73,6 +73,7 @@ func main() {
 		IgnorePaths("/api/auth/ww_login").
 		IgnorePaths("/api/auth/feishu_login").
 		IgnorePaths("/api/v1/site/guide").
+		IgnorePaths("/api/v1/ssh/webssh").
 		Build())
 	// 加载权限中间件
 	r.Use(middleware.PermissionCheck())
