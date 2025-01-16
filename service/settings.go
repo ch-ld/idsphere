@@ -1,6 +1,10 @@
 package service
 
 import (
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"errors"
 	"fmt"
 	"github.com/wonderivan/logger"
 	"mime/multipart"
@@ -35,9 +39,6 @@ type SettingsUpdate struct {
 	PasswordLength             string `json:"passwordLength"`
 	PasswordComplexity         string `json:"passwordComplexity"`
 	PasswordExpiryReminderDays string `json:"passwordExpiryReminderDays"`
-	Certificate                string `json:"certificate"`
-	PublicKey                  string `json:"publicKey"`
-	PrivateKey                 string `json:"privateKey"`
 	MailAddress                string `json:"mailAddress"`
 	MailPort                   string `json:"mailPort"`
 	MailForm                   string `json:"mailForm"`
@@ -72,6 +73,12 @@ type SmsTest struct {
 type LoginTest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
+}
+
+type CertTest struct {
+	Certificate string `json:"certificate" binding:"required"`
+	PublicKey   string `json:"publicKey" binding:"required"`
+	PrivateKey  string `json:"privateKey" binding:"required"`
 }
 
 // GetAllSettingsWithParsedValues 获取所有配置
@@ -174,9 +181,6 @@ func (s *settings) UpdateSettingValues(data *SettingsUpdate) (map[string]interfa
 		"passwordLength":             data.PasswordLength,
 		"passwordComplexity":         data.PasswordComplexity,
 		"passwordExpiryReminderDays": data.PasswordExpiryReminderDays,
-		"certificate":                data.Certificate,
-		"publicKey":                  data.PublicKey,
-		"privateKey":                 data.PrivateKey,
 		"mailAddress":                data.MailAddress,
 		"mailPort":                   data.MailPort,
 		"mailForm":                   data.MailForm,
@@ -295,6 +299,203 @@ func (s *settings) LoginTest(username, password string) error {
 	}
 
 	return nil
+}
+
+// CertTest 密钥证书测试
+func (s *settings) CertTest(certificate, privateKey, publicKey string) error {
+
+	// 解析私钥
+	privateKeyBlock, _ := pem.Decode([]byte(privateKey))
+	if privateKeyBlock == nil || privateKeyBlock.Type != "PRIVATE KEY" {
+		return errors.New("无效的私钥")
+	}
+	privInterface, err := x509.ParsePKCS8PrivateKey(privateKeyBlock.Bytes)
+	if err != nil {
+		return errors.New(fmt.Sprintf("无效的私钥: %v", err))
+	}
+
+	// 确保私钥为 RSA
+	priv, ok := privInterface.(*rsa.PrivateKey)
+	if !ok {
+		return errors.New("私钥不是 RSA 类型")
+	}
+
+	// 解析公钥
+	publicKeyBlock, _ := pem.Decode([]byte(publicKey))
+	if publicKeyBlock == nil {
+		return errors.New("无效的公钥")
+	}
+	pubInterface, err := x509.ParsePKIXPublicKey(publicKeyBlock.Bytes)
+	if err != nil {
+		return errors.New(fmt.Sprintf("无效的公钥: %v", err))
+	}
+
+	// 确保公钥为 RSA
+	pub, ok := pubInterface.(*rsa.PublicKey)
+	if !ok {
+		return errors.New("公钥不是 RSA 类型")
+	}
+
+	// 验证私钥和公钥是否匹配
+	privPub := priv.Public()
+	privPubKey, ok := privPub.(*rsa.PublicKey)
+	if !ok {
+		return errors.New(fmt.Sprintf("无法从私钥中提取公钥: %v", err))
+	}
+	if privPubKey.N.Cmp(pub.N) != 0 || privPubKey.E != pub.E {
+		return errors.New("私钥和公钥不匹配")
+	}
+
+	// 解析证书
+	certBlock, _ := pem.Decode([]byte(certificate))
+	if certBlock == nil || certBlock.Type != "CERTIFICATE" {
+		return errors.New("无效的证书")
+	}
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return errors.New(fmt.Sprintf("无效的证书: %v", err))
+	}
+
+	// 验证证书中的公钥是否匹配
+	certPub, ok := cert.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return errors.New("证书中提取的公钥类型不是 RSA")
+	}
+	if certPub.N.Cmp(pub.N) != 0 || certPub.E != pub.E {
+		return errors.New("证书中提取的公钥和提供的公钥不匹配")
+	}
+
+	return nil
+}
+
+// CertUpdate 证书及密钥更新
+func (s *settings) CertUpdate(certificate, privateKey, publicKey string) (map[string]interface{}, error) {
+
+	var (
+		settingsToUpdate = map[string]interface{}{
+			"certificate": certificate,
+			"publicKey":   publicKey,
+			"privateKey":  privateKey,
+		}
+		authUsers []model.AuthUser
+		accounts  []model.Account
+		settings  []model.Settings
+		keys      = []string{"ldapBindPassword", "mailPassword", "smsAppSecret", "dingdingAppSecret", "feishuAppSecret", "wechatSecret"}
+	)
+
+	// 开启事务
+	tx := global.MySQLClient.Begin()
+
+	// 用户密码更新
+	if err := global.MySQLClient.Find(&authUsers).Error; err != nil {
+		return nil, err
+	}
+	for _, user := range authUsers {
+		// 获取明文密码
+		plaintext, err := utils.Decrypt(user.Password)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		// 使用新密钥加密
+		newCiphertext, err := utils.EncryptWithPublicKey(plaintext, publicKey)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		// 保存
+		if err := tx.Model(&user).Where("id = ?", user.ID).Updates(map[string]interface{}{"password": newCiphertext}).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// 账号资产密码更新
+	if err := global.MySQLClient.Find(&accounts).Error; err != nil {
+		return nil, err
+
+	}
+	for _, account := range accounts {
+		// 获取明文密码
+		plaintext, err := utils.Decrypt(account.Password)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		// 使用新密钥加密
+		newCiphertext, err := utils.EncryptWithPublicKey(plaintext, publicKey)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		// 保存
+		if err := tx.Model(&account).Where("id = ?", account.ID).Updates(map[string]interface{}{"password": newCiphertext}).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	// 配置信息加密数据更新
+	if err := global.MySQLClient.Where("`key` IN ?", keys).Find(&settings).Error; err != nil {
+		return nil, err
+	}
+	for _, setting := range settings {
+
+		// 未配置则跳过
+		if setting.Value == nil {
+			continue
+		}
+
+		// 解密当前值
+		plaintext, err := utils.Decrypt(*setting.Value)
+		if err != nil {
+			tx.Rollback()
+			return nil, errors.New(fmt.Sprintf("failed to decrypt value for key %v: %v", setting.Key, err))
+		}
+
+		// 重新加密
+		newCiphertext, err := utils.EncryptWithPublicKey(plaintext, publicKey)
+		if err != nil {
+			tx.Rollback()
+			return nil, errors.New(fmt.Sprintf("failed to decrypt value for key %v: %v", setting.Key, err))
+		}
+
+		// 更新值
+		setting.Value = &newCiphertext
+		if err := tx.Save(&setting).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	for key, value := range settingsToUpdate {
+		strValue := fmt.Sprintf("%v", value)
+		settingsToUpdate[key] = strValue
+	}
+
+	// 证书及密钥配置更新
+	result, err := dao.Settings.UpdateSettings(tx, settingsToUpdate)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// 重新加载配置
+	if err := db.InitConfig(global.MySQLClient); err != nil {
+		logger.Warn("配置加载失败：" + err.Error())
+	}
+
+	return result, nil
 }
 
 func TestHTML() string {

@@ -14,14 +14,18 @@ func initSettingsRouters(router *gin.Engine) {
 		// 上传 Logo
 		settings.POST("/logoUpload", controller.Settings.UploadLogo)
 		// 获取 Logo（不需要认证，不需要权限）
-		settings.GET("/logo", controller.Settings.GetLogo)
+		settings.GET("/site/logo", controller.Settings.GetLogo)
 		// 修改配置
 		settings.PUT("", controller.Settings.UpdateSettings)
+		// 证书替换
+		settings.PUT("/cert", controller.Settings.CertUpdate)
 		// 发送邮箱测试
 		settings.POST("/test/mailSend", controller.Settings.SendMail)
 		// LDAP 登录测试
 		settings.POST("/test/ldapLogin", controller.Settings.LdapLogin)
 		// 发送短信测试
 		settings.POST("/test/smsSend", controller.Settings.SendSms)
+		// 证书校验
+		settings.POST("/test/certTest", controller.Settings.CertTest)
 	}
 }

@@ -40,7 +40,7 @@ func (s *settings) GetSettings(c *gin.Context) {
 // @Tags 配置相接口
 // @Param Authorization header string true "Bearer 用户令牌"
 // @Success 200 {string} json "{"code": 0, "path": logoPreview}"
-// @Router /api/v1/settings/logo [get]
+// @Router /api/v1/settings/site/logo [get]
 func (s *settings) GetLogo(c *gin.Context) {
 
 	logoPreview, err := service.Settings.GetLogo()
@@ -171,6 +171,69 @@ func (s *settings) SendSms(c *gin.Context) {
 		"code": 0,
 		"msg":  "接口调用成功",
 	})
+}
+
+// CertTest 密钥及证书测试
+// @Summary 密钥及证书测试
+// @Description 配置相接口
+// @Tags 配置相接口
+// @Param Authorization header string true "Bearer 用户令牌"
+// @Param task body service.CertTest true "密钥信息"
+// @Success 200 {string} json "{"code": 0: "msg": "测试成功"}"
+// @Router /api/v1/settings/test/certTest [post]
+func (s *settings) CertTest(c *gin.Context) {
+
+	var data = &service.CertTest{}
+
+	// 数据绑定
+	if err := c.ShouldBind(&data); err != nil {
+		Response(c, 90400, err.Error())
+		return
+	}
+
+	if err := service.Settings.CertTest(data.Certificate, data.PrivateKey, data.PublicKey); err != nil {
+		Response(c, 90500, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 0,
+		"msg":  "测试成功",
+	})
+}
+
+// CertUpdate 密钥及证书替换
+// @Summary 密钥及证书替换
+// @Description 配置相接口
+// @Tags 配置相接口
+// @Param Authorization header string true "Bearer 用户令牌"
+// @Param task body service.CertTest true "密钥信息"
+// @Success 200 {string} json "{"code": 0: "msg": "更新成功"}"
+// @Router /api/v1/settings/cert [put]
+func (s *settings) CertUpdate(c *gin.Context) {
+
+	var data = &service.CertTest{}
+
+	// 数据绑定
+	if err := c.ShouldBind(&data); err != nil {
+		Response(c, 90400, err.Error())
+		return
+	}
+
+	// 证书及密钥测试
+	if err := service.Settings.CertTest(data.Certificate, data.PrivateKey, data.PublicKey); err != nil {
+		Response(c, 90500, err.Error())
+		return
+	}
+
+	// 证书及密钥更新
+	result, err := service.Settings.CertUpdate(data.Certificate, data.PrivateKey, data.PublicKey)
+	if err != nil {
+		Response(c, 90500, err.Error())
+		return
+	}
+
+	CreateOrUpdateResponse(c, 0, "更新成功", result)
 }
 
 // LdapLogin LDAP 用户登录测试

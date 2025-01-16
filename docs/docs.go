@@ -1251,13 +1251,13 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/settings/logo": {
-            "get": {
+        "/api/v1/settings/cert": {
+            "put": {
                 "description": "配置相接口",
                 "tags": [
                     "配置相接口"
                 ],
-                "summary": "获取 Logo",
+                "summary": "密钥及证书替换",
                 "parameters": [
                     {
                         "type": "string",
@@ -1265,11 +1265,20 @@ const docTemplate = `{
                         "name": "Authorization",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "description": "密钥信息",
+                        "name": "task",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.CertTest"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "{\"code\": 0, \"path\": logoPreview}",
+                        "description": "{\"code\": 0: \"msg\": \"更新成功\"}",
                         "schema": {
                             "type": "string"
                         }
@@ -1303,6 +1312,67 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "{\"code\": 0, \"path\": logoPreview}",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/settings/site/logo": {
+            "get": {
+                "description": "配置相接口",
+                "tags": [
+                    "配置相接口"
+                ],
+                "summary": "获取 Logo",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer 用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{\"code\": 0, \"path\": logoPreview}",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/settings/test/certTest": {
+            "post": {
+                "description": "配置相接口",
+                "tags": [
+                    "配置相接口"
+                ],
+                "summary": "密钥及证书测试",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer 用户令牌",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "密钥信息",
+                        "name": "task",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/service.CertTest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "{\"code\": 0: \"msg\": \"测试成功\"}",
                         "schema": {
                             "type": "string"
                         }
@@ -2889,6 +2959,25 @@ const docTemplate = `{
                 }
             }
         },
+        "service.CertTest": {
+            "type": "object",
+            "required": [
+                "certificate",
+                "privateKey",
+                "publicKey"
+            ],
+            "properties": {
+                "certificate": {
+                    "type": "string"
+                },
+                "privateKey": {
+                    "type": "string"
+                },
+                "publicKey": {
+                    "type": "string"
+                }
+            }
+        },
         "service.CodeVerification": {
             "type": "object",
             "required": [
@@ -3305,9 +3394,6 @@ const docTemplate = `{
         "service.SettingsUpdate": {
             "type": "object",
             "properties": {
-                "certificate": {
-                    "type": "string"
-                },
                 "dingdingAppKey": {
                     "type": "string"
                 },
@@ -3369,12 +3455,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "passwordLength": {
-                    "type": "string"
-                },
-                "privateKey": {
-                    "type": "string"
-                },
-                "publicKey": {
                     "type": "string"
                 },
                 "secret": {
